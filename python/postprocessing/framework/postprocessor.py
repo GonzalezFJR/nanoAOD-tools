@@ -37,6 +37,9 @@ class PostProcessor:
         self.haddFileName = haddFileName
         self.histFile = None
         self.histDirName = None
+        self.hcount = ROOT.TH1F("Count", "Count", 1, 0, 1)
+        self.hsumofweights = ROOT.TH1F("SumWeights", "SumWeights", 1, 0, 1)
+        self.hsmscount = ROOT.TH2F("SMSCount", "SMSCount", 2000, -0.5, 1999.5, 2000, -0.5, 1999.5)
         if self.jobReport and not self.haddFileName:
             print("Because you requested a FJR we assume you want the final " \
                 "hadd. No name specified for the output file, will use tree.root")
@@ -166,6 +169,14 @@ class PostProcessor:
             nEntries = min(inTree.GetEntries() -
                            self.firstEntry, self.maxEntries)
             totEntriesRead += nEntries
+            self.hcount.SetBinContent(1, inTree.GetEntries())
+            ROOT.gROOT.SetBatch(1)
+            inTree.Draw("MaxIf$(GenPart_mass, GenPart_pdgId == 1000006):MaxIf$(GenPart_mass, GenPart_pdgId == 1000022) >> hSMS(2000, -0.5, 1999.5, 2000, -0.5, 1999.5)")
+            self.hsmscount = ROOT.gDirectory.Get('hSMS')
+            if inTree.GetBranchStatus("genWeight"):
+              inTree.Project("SumWeightsTemp", "1.0", "genWeight")
+              sow = ROOT.gROOT.FindObject("SumWeightsTemp").Integral()
+              self.hsumofweights.SetBinContent(1, sow)
             # pre-skimming
             elist, jsonFilter = preSkim(
                 inTree, self.json, self.cut, maxEntries=self.maxEntries, firstEntry=self.firstEntry)
@@ -240,6 +251,9 @@ class PostProcessor:
 
             # now write the output
             if not self.noOut:
+                self.hcount.Write()
+                self.hsmscount.Write()
+                self.hsumofweights.Write()
                 outTree.write()
                 outFile.Close()
                 print("Done %s" % outFileName)
